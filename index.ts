@@ -96,7 +96,7 @@ const QuestionnaireParams = Type.Object({
 			label: Type.Optional(
 				Type.String({ description: "One-word display name shown in the tab bar when asking 2+ questions (default Q1, Q2)" }),
 			),
-			prompt: Type.String({ description: "The question text as the user will read it" }),
+			prompt: Type.String({ description: "The question text as the user will read it — the ask itself only. The TUI already teaches its own controls (tabs, toggle, free text), so keep tool mechanics out of the prompt" }),
 			options: Type.Array(
 				Type.Object({
 					value: Type.String({ description: "Short stable token you branch on when the answer comes back" }),
