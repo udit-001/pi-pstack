@@ -96,7 +96,7 @@ const QuestionnaireParams = Type.Object({
 			label: Type.Optional(
 				Type.String({ description: "One-word display name shown in the tab bar when asking 2+ questions (default Q1, Q2)" }),
 			),
-			prompt: Type.String({ description: "The question text as the user will read it — the ask itself only. The TUI already teaches its own controls (tabs, toggle, free text), so keep tool mechanics out of the prompt" }),
+			prompt: Type.String({ description: "The question text as the user will read it — the ask alone; the TUI explains its own controls" }),
 			options: Type.Array(
 				Type.Object({
 					value: Type.String({ description: "Short stable token you branch on when the answer comes back" }),
@@ -105,19 +105,19 @@ const QuestionnaireParams = Type.Object({
 						Type.String({ description: "One-line helper below the option" }),
 					),
 					recommended: Type.Optional(
-						Type.Boolean({ description: "Mark your recommended option with this; it renders a Recommended badge. Keep the recommended option first and give it a real reason in its description" }),
+						Type.Boolean({ description: "Renders a Recommended badge next to the label. Exactly one option; keep it first, and say why in its description" }),
 					),
 				}),
-				{ description: "2..6 concrete choices; do not pad — each must change what you do next. Exactly one option carries recommended: true, and it sits first" },
+				{ description: "2..6 concrete choices — each must change what you do next. Exactly one option carries recommended: true, and it sits first" },
 			),
 			allowOther: Type.Optional(
 				Type.Boolean({ description: "Permit a free-text answer alongside the listed options (default true). Omit only when the user must pick one of the options" }),
 			),
 			multiSelect: Type.Optional(
-				Type.Boolean({ description: "Accept several picks; the user toggles options on/off and submits the set (default false = pick exactly one)" }),
+				Type.Boolean({ description: "Accept several picks; the answer is the full set (default false = exactly one)" }),
 			),
 		}),
-		{ description: "All blocking questions in one call — the user answers them in one pass. Returned text is one line per answer: 'Label: user selected: N. Option label' or 'Label: user wrote: .'" },
+		{ description: "All blocking questions in one call — the user answers them in one pass. Returned text is one line per question: 'Label: user selected: N. Option label' or 'Label: user wrote: …'" },
 	),
 });
 

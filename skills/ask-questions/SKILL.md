@@ -28,7 +28,8 @@ questions: [
 - Exactly one option carries `recommended: true`; it renders a badge. Keep it first, and say why in its description.
 - One question per concern: merge questions with the same answer, split ones whose answers are entangled.
 - Batching: all blocking questions ride in this one call at a natural seam. A new blocking decision mid-work earns its own call — drip questions across turns and the reader loses the whole picture; stack five questions at the seam and attention thins past four.
-- `allowOther` stays on (default); omit it only when the user must pick one of the options.
+- `allowOther` stays on (default); omit it when the answer must be one of the listed options.
+- The prompt is the ask alone; the TUI explains its own controls.
 
 ## Reading the result
 
