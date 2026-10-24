@@ -196,7 +196,7 @@ function registerQuestionnaire(pi: ExtensionAPI): void {
 				} else {
 					const mark = row.written ? theme.fg("muted", "wrote ") : "";
 					lines.push(
-						`${theme.fg("muted", "· ")}${theme.fg("text", mark + row.answer)}`,
+						`${theme.fg("muted", "· ")}${theme.fg("text", mark + row.labelsJoined)}`,
 					);
 				}
 			}

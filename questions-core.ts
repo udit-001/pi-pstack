@@ -101,10 +101,14 @@ export function summarizeAnswers(result: QuestionnaireResult): string[] {
 }
 
 /** Chat result view model: header + one row per question.
- *  Collapsed shows only `summary` rows; expanded shows prompt + answer pairs. */
+ *  Collapsed shows label-only lines; expanded shows prompt + numbered pairs. */
 export interface QuestionResultRow {
 	prompt: string;
+	/** Expanded form: numbered picks + "wrote: x" in selection order. */
 	answer: string;
+	/** Collapsed form: display labels only — no option numbers. */
+	labelsJoined: string;
+	/** Any pick was free text. */
 	written: boolean;
 }
 
@@ -114,14 +118,15 @@ export function resultView(result: QuestionnaireResult): {
 } {
 	const rows = result.answers.map((a) => {
 		const q = result.questions.find((question) => question.id === a.id);
-		const picks = a.indexes
+		const numbered = a.indexes
 			.map((idx, i) => (idx === undefined ? undefined : `${idx}. ${a.labels[i]}`))
 			.filter((s): s is string => s !== undefined);
 		const wrote = a.labels.filter((_, i) => a.indexes[i] === undefined);
-		const parts = [...picks, ...wrote.map((w) => `wrote: ${w}`)];
+		const expandedParts = [...numbered, ...wrote.map((w) => `wrote: ${w}`)];
 		return {
 			prompt: q?.prompt ?? a.id,
-			answer: parts.join(", "),
+			answer: expandedParts.join(", "),
+			labelsJoined: a.labels.join(", "),
 			written: wrote.length > 0,
 		};
 	});

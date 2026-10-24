@@ -137,8 +137,10 @@ describe("resultView", () => {
 		assert.equal(view.header, "Questions");
 		assert.equal(view.rows[0]!.prompt, "What's your favorite color?");
 		assert.equal(view.rows[0]!.answer, "1. Red");
+		assert.equal(view.rows[0]!.labelsJoined, "Red");
 		assert.equal(view.rows[0]!.written, false);
 		assert.equal(view.rows[1]!.answer, "1. Reading, 2. Gaming, wrote: larping");
+		assert.equal(view.rows[1]!.labelsJoined, "Reading, Gaming, larping");
 		assert.equal(view.rows[1]!.written, true);
 	});
 });
