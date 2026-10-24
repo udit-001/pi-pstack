@@ -5,6 +5,7 @@ import {
 	displayOptions,
 	normalizeQuestions,
 	OTHER_VALUE,
+	resultView,
 	summarizeAnswers,
 	type QuestionnaireResult,
 	type QuizQuestion,
@@ -96,5 +97,48 @@ describe("summarizeAnswers", () => {
 			}),
 			["Aa: user selected: 2. Alpha", "Bb: user wrote: wrote it"],
 		);
+	});
+});
+
+describe("resultView", () => {
+	test("one row per question; picks numbered, writes prefixed", () => {
+		const qs = normalizeQuestions([
+			{
+				id: "color",
+				label: "Color",
+				prompt: "What's your favorite color?",
+				options: [{ value: "red", label: "Red" }],
+			},
+			{
+				id: "hobbies",
+				label: "Hobbies",
+				prompt: "Which hobbies do you enjoy?",
+				multiSelect: true,
+				options: [
+					{ value: "read", label: "Reading" },
+					{ value: "game", label: "Gaming" },
+				],
+			},
+		]).questions;
+		const view = resultView({
+			questions: qs,
+			answers: [
+				{ id: "color", values: ["red"], labels: ["Red"], wasCustom: false, indexes: [1] },
+				{
+					id: "hobbies",
+					values: ["read", "game", "__other__"],
+					labels: ["Reading", "Gaming", "larping"],
+					wasCustom: true,
+					indexes: [1, 2, undefined],
+				},
+			],
+			cancelled: false,
+		});
+		assert.equal(view.header, "Questions");
+		assert.equal(view.rows[0]!.prompt, "What's your favorite color?");
+		assert.equal(view.rows[0]!.answer, "1. Red");
+		assert.equal(view.rows[0]!.written, false);
+		assert.equal(view.rows[1]!.answer, "1. Reading, 2. Gaming, wrote: larping");
+		assert.equal(view.rows[1]!.written, true);
 	});
 });

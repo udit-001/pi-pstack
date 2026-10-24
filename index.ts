@@ -21,6 +21,7 @@ import { adapt, check, type SourceTree, type FileEntry, type HarnessConfig } fro
 import {
 	answerText,
 	normalizeQuestions,
+	resultView,
 	type QuestionnaireResult,
 	type QuizQuestion,
 } from "./questions-core.ts";
@@ -169,14 +170,40 @@ function registerQuestionnaire(pi: ExtensionAPI): void {
 			return new Text(text, 0, 0);
 		},
 
-		renderResult(result, _options, theme) {
+		renderResult(result, { expanded }, theme) {
 			const details = result.details as QuestionnaireResult | undefined;
 			if (!details) {
 				const first = result.content[0];
 				return new Text(first?.type === "text" ? first.text : "", 0, 0);
 			}
 			if (details.cancelled) return new Text(theme.fg("warning", "Cancelled"), 0, 0);
-			return new Text(answerText(details), 0, 0);
+			const view = resultView(details);
+			const lines: string[] = [];
+			// Header: count first (success when complete), questions answered of asked.
+			const answered = view.rows.length;
+			const total = details.questions.length;
+			const countLine = details.cancelled
+				? "cancelled"
+				: `${answered} of ${total} answered`;
+			lines.push(
+				`${theme.fg("toolTitle", theme.bold("# Questions "))}${theme.fg("success", countLine)}`,
+			);
+			for (const row of view.rows) {
+				if (expanded) {
+					lines.push("");
+					lines.push(theme.fg("muted", row.prompt));
+					lines.push(theme.fg("text", row.answer));
+				} else {
+					const mark = row.written ? theme.fg("muted", "wrote ") : "";
+					lines.push(
+						`${theme.fg("muted", "· ")}${theme.fg("text", mark + row.answer)}`,
+					);
+				}
+			}
+			if (!expanded && total > answered) {
+				lines.push(theme.fg("dim", `· ${total - answered} unanswered`));
+			}
+			return new Text(lines.join("\n"), 0, 0);
 		},
 	});
 }

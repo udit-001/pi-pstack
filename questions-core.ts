@@ -99,3 +99,31 @@ export function answerText(result: QuestionnaireResult): string {
 export function summarizeAnswers(result: QuestionnaireResult): string[] {
 	return answerText(result).split("\n");
 }
+
+/** Chat result view model: header + one row per question.
+ *  Collapsed shows only `summary` rows; expanded shows prompt + answer pairs. */
+export interface QuestionResultRow {
+	prompt: string;
+	answer: string;
+	written: boolean;
+}
+
+export function resultView(result: QuestionnaireResult): {
+	header: string;
+	rows: QuestionResultRow[];
+} {
+	const rows = result.answers.map((a) => {
+		const q = result.questions.find((question) => question.id === a.id);
+		const picks = a.indexes
+			.map((idx, i) => (idx === undefined ? undefined : `${idx}. ${a.labels[i]}`))
+			.filter((s): s is string => s !== undefined);
+		const wrote = a.labels.filter((_, i) => a.indexes[i] === undefined);
+		const parts = [...picks, ...wrote.map((w) => `wrote: ${w}`)];
+		return {
+			prompt: q?.prompt ?? a.id,
+			answer: parts.join(", "),
+			written: wrote.length > 0,
+		};
+	});
+	return { header: "Questions", rows };
+}
