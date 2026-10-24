@@ -1,0 +1,23 @@
+{
+  "name": "pi-pstack",
+  "version": "0.1.0",
+  "description": "pstack, ported to pi: skills loaded through dynamic resources, subagents for pi-subagents, and a hand-authored pi harness adapter",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pstack",
+    "poteto-mode",
+    "unslop"
+  ],
+  "pi": {
+    "extensions": ["./index.ts"],
+    "subagents": {
+      "agents": ["./agents"]
+    }
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
