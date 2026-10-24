@@ -112,6 +112,9 @@ const QuestionnaireParams = Type.Object({
 			allowOther: Type.Optional(
 				Type.Boolean({ description: "Permit a free-text answer alongside the listed options (default true). Omit only when the user must pick one of the options" }),
 			),
+			multiSelect: Type.Optional(
+				Type.Boolean({ description: "Accept several picks; the user toggles options on/off and submits the set (default false = pick exactly one)" }),
+			),
 		}),
 		{ description: "All blocking questions in one call — the user answers them in one pass. Returned text is one line per answer: 'Label: user selected: N. Option label' or 'Label: user wrote: .'" },
 	),
