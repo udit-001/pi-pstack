@@ -1,6 +1,6 @@
 # pi-pstack
 
-pstack, ported to [pi](https://github.com/badlogic/pi-mono). Lauren Tan's 58-skill workflow plugin — `/poteto-mode`, `/why`, `/unslop`, `/tdd` and the rest — runs in the pi coding agent, with its subagents and a hand-checked map from Cursor terms to pi.
+[pstack](https://github.com/cursor/plugins/tree/main/pstack), ported to [pi](https://pi.dev). Lauren Tan's 58-skill workflow plugin — `/poteto-mode`, `/why`, `/unslop`, `/tdd` and the rest — runs in the pi coding agent, with its subagents and a hand-checked map from Cursor terms to pi.
 
 ## Install
 
