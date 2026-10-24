@@ -7,7 +7,7 @@ Read this file once per session before you follow any pstack skill. It maps the 
 | Cursor | pi |
 | --- | --- |
 | `Task` | `subagent` (pi-subagents). One child: `{agent, task}`. Several independent children: one `subagent` workflow call with `workflow: "parallel"`. Dependent multi-step work: one top-level `subagent` call with `async: true` on an async `workflow`. |
-| `AskQuestion` | pi has no dedicated question tool. Ask in plain text, one question at a time, recommendation first. |
+| `AskQuestion` | The `questionnaire` tool (pi-pstack). One call covers 1..n questions — options with descriptions, free text via the default "Type something" option, recommended option first. In non-TUI runs (`pi -p`, subagent children) it errors; ask in plain text, one question at a time. The `ask-questions` skill (pi-pstack) holds the trigger rules. |
 | todolist | pi's `todo` tool. Open a `todo` entry per playbook step and close it as you go. |
 | Run another pstack skill (`/name` or "the **name** skill") | `Read` `<pstack>/skills/<name>/SKILL.md` and follow it. In pi most pstack skills stay out of automatic skill selection, and the user invokes them as `/skill:<name>`. When you tell the user to type it, write `/skill:<name>`. |
 | `Grep`, `Glob` | pi has `read` and `bash`; use `grep`/`rg` through `bash`. |

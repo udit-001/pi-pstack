@@ -1,0 +1,100 @@
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import {
+	answerText,
+	displayOptions,
+	normalizeQuestions,
+	OTHER_VALUE,
+	summarizeAnswers,
+	type QuestionnaireResult,
+	type QuizQuestion,
+} from "./questions-core.ts";
+
+const q = (over: Partial<QuizQuestion> & { id: string }): QuizQuestion => ({
+	prompt: `prompt for ${over.id}`,
+	options: [
+		{ value: "a", label: "Alpha" },
+		{ value: "b", label: "Beta" },
+	],
+	...over,
+});
+
+describe("normalizeQuestions", () => {
+	test("fills label and allowOther defaults", () => {
+		const { questions, error } = normalizeQuestions([q({ id: "scope" }), q({ id: "priority" })]);
+		assert.equal(error, undefined);
+		assert.equal(questions[0]!.label, "Q1");
+		assert.equal(questions[1]!.label, "Q2");
+		assert.ok(questions.every((x) => x.allowOther === true));
+	});
+
+	test("respects explicit label and allowOther: false", () => {
+		const { questions } = normalizeQuestions([
+			q({ id: "scope", label: "Scope", allowOther: false }),
+		]);
+		assert.equal(questions[0]!.label, "Scope");
+		assert.equal(questions[0]!.allowOther, false);
+	});
+
+	test("validates empty list, missing prompt, and empty options", () => {
+		assert.equal(normalizeQuestions([]).error, "No questions provided");
+		assert.ok(normalizeQuestions([q({ id: "x", prompt: "" })]).error?.includes("needs a prompt"));
+		assert.ok(normalizeQuestions([q({ id: "x", options: [] })]).error?.includes("needs at least one option"));
+	});
+});
+
+describe("displayOptions", () => {
+	test("appends the free-text option unless allowOther is false", () => {
+		const normalized = normalizeQuestions([q({ id: "a" })]).questions;
+		const other = displayOptions(normalized[0]!).at(-1) as Record<string, unknown>;
+		assert.equal(other.value, OTHER_VALUE);
+		assert.equal(other.isOther, true);
+		const off = normalizeQuestions([q({ id: "a", allowOther: false })]).questions;
+		assert.equal(displayOptions(off[0]!).length, 2);
+	});
+});
+
+describe("answerText", () => {
+	test("single-choice and custom answers render distinctly", () => {
+		const result: QuestionnaireResult = {
+			questions: normalizeQuestions([q({ id: "scope", label: "Scope" })]).questions,
+			answers: [
+				{ id: "scope", values: ["a"], labels: ["Alpha"], wasCustom: false, indexes: [1] },
+			],
+			cancelled: false,
+		};
+		assert.equal(answerText(result), "Scope: user selected: 1. Alpha");
+		result.answers[0] = {
+			id: "scope",
+			values: ["inline", "__other__"],
+			labels: ["Inline panel", "something else"],
+			wasCustom: true,
+			indexes: [1, undefined],
+		};
+		assert.equal(
+			answerText(result),
+			"Scope: user selected: 1. Inline panel, user wrote: something else",
+		);
+	});
+
+	test("cancel message", () => {
+		assert.equal(answerText({ questions: [], answers: [], cancelled: true }),
+			"User cancelled the questionnaire");
+	});
+});
+
+describe("summarizeAnswers", () => {
+	test("formats listed and written answers", () => {
+		assert.deepEqual(
+			summarizeAnswers({
+				questions: [q({ id: "a", label: "Aa" }), q({ id: "b", label: "Bb" })],
+				answers: [
+					{ id: "a", values: ["a"], labels: ["Alpha"], wasCustom: false, indexes: [2] },
+					{ id: "b", values: ["__other__"], labels: ["wrote it"], wasCustom: true, indexes: [undefined] },
+				],
+				cancelled: false,
+			}),
+			["Aa: user selected: 2. Alpha", "Bb: user wrote: wrote it"],
+		);
+	});
+});

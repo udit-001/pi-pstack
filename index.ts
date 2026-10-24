@@ -1,16 +1,30 @@
 /**
  * pi-pstack — thin adapter between pi's extension API and the harness module.
  *
- * All behavior lives in harness-core.ts. This file reads the vendored pstack
- * sources, hands them to the harness, writes the generated tree, and exposes
- * it to pi through resources_discover (pi's dynamic resource loading).
+ * Two responsibilities, both delegating entirely to deeper modules:
+ *
+ * 1. pstack harness: reads the vendored pstack sources, harness-core.ts
+ *    generates the pi harness tree, resources_discover exposes its skills,
+ *    /pstack-doctor reports problems.
+ * 2. questionnaire tool: the pi example built out. questions-core.ts owns
+ *    pure logic, questions-tui.ts owns the TUI component; this file wires
+ *    them to pi.registerTool.
  */
 
 import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import { existsSync, readFileSync, readdirSync, rmSync, mkdirSync, writeFileSync, chmodSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adapt, check, type SourceTree, type FileEntry, type HarnessConfig } from "./harness-core.ts";
+import {
+	answerText,
+	normalizeQuestions,
+	type QuestionnaireResult,
+	type QuizQuestion,
+} from "./questions-core.ts";
+import { buildQuestionnaire, type TuiTheme } from "./questions-tui.ts";
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
@@ -39,7 +53,7 @@ function readText(path: string, fallback: string): string {
 	}
 }
 
-// ─── Source reading (the module's only fs) ───────────────────────────────────
+// ─── Source reading (the adapter's only fs) ──────────────────────────────────
 
 function readSource(root: string): SourceTree {
 	const tree: SourceTree = new Map();
@@ -70,6 +84,95 @@ function writeTree(files: SourceTree): void {
 		writeFileSync(abs, entry.bytes);
 		chmodSync(abs, entry.executable ? 0o755 : 0o644);
 	}
+}
+
+// ─── Questionnaire tool ──────────────────────────────────────────────────────
+
+const QuestionnaireParams = Type.Object({
+	questions: Type.Array(
+		Type.Object({
+			id: Type.String({ description: "Identifier you branch on later; still present in the returned text" }),
+			label: Type.Optional(
+				Type.String({ description: "One-word display name shown in the tab bar when asking 2+ questions (default Q1, Q2)" }),
+			),
+			prompt: Type.String({ description: "The question text as the user will read it" }),
+			options: Type.Array(
+				Type.Object({
+					value: Type.String({ description: "Short stable token you branch on when the answer comes back" }),
+					label: Type.String({ description: "The option text as the user will read it" }),
+					description: Type.Optional(
+						Type.String({ description: "One-line helper below the option; mark the recommended option as Recommended here" }),
+					),
+				}),
+				{ description: "2..6 concrete choices; do not pad — each must change what you do next. Recommended option first, marked Recommended in its description" },
+			),
+			allowOther: Type.Optional(
+				Type.Boolean({ description: "Permit a free-text answer alongside the listed options (default true). Omit only when the user must pick one of the options" }),
+			),
+		}),
+		{ description: "All blocking questions in one call — the user answers them in one pass. Returned text is one line per answer: 'Label: user selected: N. Option label' or 'Label: user wrote: .'" },
+	),
+});
+
+function registerQuestionnaire(pi: ExtensionAPI): void {
+	pi.registerTool({
+		name: "questionnaire",
+		label: "Questionnaire",
+		description:
+			"When a decision blocks progress and its options can be enumerated (2..6 concrete choices), ask through this tool — one call, all blocking questions, recommended option first. Triggers: clarifying requirements, getting preferences, confirming a choice. Wording rules live in the ask-questions skill; non-interactive runs (pi -p, subagent children) have no UI and error — ask in plain text there.",
+		promptSnippet: "questionnaire: ask the user 1..n questions with options (recommended first)",
+		parameters: QuestionnaireParams,
+		executionMode: "sequential",
+
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			if (ctx.mode !== "tui") {
+				return {
+					isError: true,
+					content: [
+						{
+							type: "text",
+							text: "questionnaire needs an interactive UI (pi TUI). Non-interactive runs have no UI: ask in plain text instead, one question at a time.",
+						},
+					],
+					details: { questions: [], answers: [], cancelled: true } as QuestionnaireResult,
+				};
+			}
+			const { questions, error } = normalizeQuestions(params.questions as QuizQuestion[]);
+			if (error || questions.length === 0) {
+				return {
+					isError: true,
+					content: [{ type: "text", text: `Invalid questionnaire: ${error}` }],
+					details: { questions: [], answers: [], cancelled: true } as QuestionnaireResult,
+				};
+			}
+
+			const result = await ctx.ui.custom<QuestionnaireResult>(
+				(tui, theme, _kb, done) =>
+					buildQuestionnaire(tui, theme as unknown as TuiTheme, questions, done),
+			);
+
+			return { content: [{ type: "text", text: answerText(result) }], details: result };
+		},
+
+		renderCall(args, theme) {
+			const qs = (args.questions as QuizQuestion[] | undefined) ?? [];
+			const labels = qs.map((q) => q.label ?? q.id).join(", ");
+			let text = theme.fg("toolTitle", theme.bold("questionnaire "));
+			text += theme.fg("muted", `${qs.length} question${qs.length !== 1 ? "s" : ""}`);
+			if (labels) text += theme.fg("dim", ` (${labels})`);
+			return new Text(text, 0, 0);
+		},
+
+		renderResult(result, _options, theme) {
+			const details = result.details as QuestionnaireResult | undefined;
+			if (!details) {
+				const first = result.content[0];
+				return new Text(first?.type === "text" ? first.text : "", 0, 0);
+			}
+			if (details.cancelled) return new Text(theme.fg("warning", "Cancelled"), 0, 0);
+			return new Text(answerText(details), 0, 0);
+		},
+	});
 }
 
 // ─── Extension ───────────────────────────────────────────────────────────────
@@ -109,6 +212,8 @@ export default function (pi: ExtensionAPI) {
 		return skillPaths.length > 0 ? { skillPaths } : {};
 	});
 
+	registerQuestionnaire(pi);
+
 	pi.registerCommand("pstack-doctor", {
 		description: "Report pi-pstack harness state and problems",
 		handler: async (_args, ctx) => {
@@ -121,4 +226,3 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 }
-

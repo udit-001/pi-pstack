@@ -142,12 +142,19 @@ module never imports pi or fs.
 
 ## Verified (this build)
 
-- `bun test harness-core.test.ts` — 13 pass, including the vendored-tree invariant.
+- `npm test` — 30 pass (13 harness + 17 questionnaire), strict-clean under tsc.
 - `pi -e . -p` — extension loads, `~/.pi/agent/pi-pstack-gen/` populated, `setup-pstack`
   the one auto-invocable catalog entry (57 command-only skills as designed).
 - `/pstack-doctor` renders the healthy state dialog.
 - `/skill:poteto` autocompletes pstack skills in the TUI.
 - `subagent({agent: "poteto-agent", task: …})` runs and returns the child's output.
+
+The questionnaire tool (see [design-questions.md](design-questions.md)) ships after
+a TUI bugfix to the pi example: the example's `handleInput` returned early on the
+submit tab because `currentQuestion()` is undefined there; this module checks
+`onSubmitTab` before asking for the current question. `skills/ask-questions/` is
+a package-root skill (pi vocabulary), deliberately outside the vendored tree so
+the pin invariant keeps scanning only upstream skills.
 
 ## Rejected framings
 
