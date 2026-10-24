@@ -19,13 +19,14 @@ const theme: TuiTheme = {
 };
 
 // No-op tui stub. The harness only calls requestRender().
-const tui = { requestRender() {} };
+const tui: any = { requestRender() {}, terminal: { rows: 40, columns: 80 } };
 
 // Editor consumes raw key data via matchesKey; accept sequences by hand.
 const DOWN = "\x1b[B";
 const UP = "\x1b[A";
 const TAB = "\t";
 const BACKTAB = "\x1b[Z";
+const SPACE = " ";
 const ESC = "\x1b";
 const ENTER = "\r";
 
@@ -91,29 +92,52 @@ describe("buildQuestionnaire (multiSelect)", () => {
 			},
 		]).questions;
 
-	test("Enter toggles; Enter again untoggles", () => {
+	test("Space toggles; Enter does not toggle", () => {
 		const results: QuestionnaireResult[] = [];
 		const h = harnessFor(multiSelQs(), (r) => results.push(r));
-		h.handleInput(ENTER); // toggle Reading
+		h.handleInput(SPACE); // Reading on
 		assert.equal(h.state().answeredCount, 1);
-		h.handleInput(ENTER); // untoggle from the same row
+		assert.ok(h.render(80).join("\n").includes("[✓] Reading"));
+		h.handleInput(SPACE); // Reading off
 		assert.equal(h.state().answeredCount, 0);
+		h.handleInput(ENTER); // confirm with nothing picked: no-op, not a submit
 		assert.deepEqual(results, []);
+		const text = h.render(80).join("\n");
+		assert.ok(text.includes("[ ] Reading"), text);
+		assert.ok(text.includes("Space toggle"), text);
 	});
 
-	test("free text composes with picks; single-question submit carries both", () => {
+	test("hammering Enter while selecting never fires a submit (regression)", () => {
 		const results: QuestionnaireResult[] = [];
 		const h = harnessFor(multiSelQs(), (r) => results.push(r));
-		h.handleInput(ENTER); // Reading [x]
+		h.handleInput(SPACE); // Reading on
+		for (let i = 0; i < 6; i++) h.handleInput(ENTER); // Enter is confirm-only
+		// With tabs absent, confirm on an answered question finishes — but every
+		// press after that is ignored post-submit, and none of them corrupt the set.
+		assert.equal(results.length, 1);
+		assert.deepEqual(results[0]!.answers[0]!.values, ["read"]);
+	});
+
+	test("free text composes with picks; write commit stays on the tab", () => {
+		const results: QuestionnaireResult[] = [];
+		const h = harnessFor(multiSelQs(), (r) => results.push(r));
+		h.handleInput(SPACE); // Reading [x]
 		h.handleInput(DOWN);
-		h.handleInput(ENTER); // Gaming [x]
+		h.handleInput(SPACE); // Gaming [x]
 		h.handleInput(DOWN);
 		h.handleInput(DOWN);
 		h.handleInput(DOWN); // "Type something." row
 		h.handleInput(ENTER); // open editor
 		h.handleInput("larping");
-		h.handleInput(ENTER); // commit write (multiSelect stays on the question)
-		h.handleInput(ENTER); // finish: Enter on the written row
+		h.handleInput(ENTER); // commit write — must NOT finish (multiSelect)
+		assert.deepEqual(results, []);
+		h.handleInput(ENTER); // confirm on the written row (re-opens editor when written)
+		// editor re-opened pre-filled; commit again
+		h.handleInput(ENTER); // commits "larping" again
+		assert.deepEqual(results, []); // still curated, not submitted
+		h.handleInput(UP); h.handleInput(UP); // onto a listed row
+		h.handleInput(ENTER); // confirm finishes
+		assert.equal(results.length, 1);
 		const a = results[0]!.answers[0]!;
 		assert.deepEqual(a.values, ["read", "game", "__other__"]);
 		assert.deepEqual(a.labels, ["Reading", "Gaming", "larping"]);
@@ -121,35 +145,29 @@ describe("buildQuestionnaire (multiSelect)", () => {
 		assert.equal(a.wasCustom, true);
 	});
 
-	test("checkbox rows show picked state; help line says toggle", () => {
+	test("written row re-opens the editor pre-filled", () => {
+		const results: QuestionnaireResult[] = [];
+		const h = harnessFor(multiSelQs(), (r) => results.push(r));
+		h.handleInput(DOWN); h.handleInput(DOWN); h.handleInput(DOWN);
+		h.handleInput(ENTER); // editor
+		h.handleInput("larping");
+		h.handleInput(ENTER); // commit (stays)
+		h.handleInput(ENTER); // re-open pre-filled
+		h.render(80); // force a render pass
+		h.handleInput(" v2");
+		h.handleInput(ENTER); // commit edit
+		h.handleInput(UP); h.handleInput(UP); h.handleInput(UP); // a listed row
+		h.handleInput(ENTER); // confirm
+		const a = results[0]!.answers[0]!;
+		assert.deepEqual(a.labels, ["larping v2"]);
+	});
+
+	test("checkbox rows show picked state", () => {
 		const h = harnessFor(multiSelQs(), () => {});
-		h.handleInput(ENTER); // Reading on
+		h.handleInput(SPACE); // Reading on
 		const text = h.render(80).join("\n");
 		assert.ok(text.includes("[✓] Reading"), text);
 		assert.ok(text.includes("[ ] Gaming"), text);
-		assert.ok(text.includes("Enter toggle"), text);
-	});
-
-	test("untoggle leaves the written answer standing; submit reflects it", () => {
-		const results: QuestionnaireResult[] = [];
-		const h = harnessFor(multiSelQs(), (r) => results.push(r));
-		h.handleInput(ENTER); // Reading on
-		h.handleInput(DOWN); h.handleInput(DOWN); h.handleInput(DOWN); // other row
-		h.handleInput(ENTER);
-		h.handleInput("larping");
-		h.handleInput(ENTER); // commit write (stays on question)
-		h.handleInput(BACKTAB); // single question: backtab still leaves the input safely
-		// focus parked on the written row via seedFocus
-		h.handleInput(UP); h.handleInput(UP); h.handleInput(UP); // up to Reading
-		h.handleInput(ENTER); // toggle Reading OFF
-		assert.equal(h.state().answeredCount, 1); // the write stands alone
-		h.handleInput(DOWN); h.handleInput(DOWN); h.handleInput(DOWN); // back to written row
-		h.handleInput(ENTER); // finish on the written row
-		assert.equal(results.length, 1);
-		const a = results[0]!.answers[0]!;
-		assert.deepEqual(a.values, ["__other__"]);
-		assert.deepEqual(a.labels, ["larping"]);
-		assert.deepEqual(a.indexes, [undefined]);
 	});
 });
 

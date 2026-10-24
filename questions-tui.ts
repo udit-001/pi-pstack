@@ -158,16 +158,16 @@ export function buildQuestionnaire(
 	}
 
 	/**
-	 * Move forward after an answer commits.
-	 * - multiSelect questions never advance: the mode is curate-then-submit,
-	 *   and a write (free text) is a mid-curation edit, not a finish signal.
-	 * - single-select with tabs: next question.
-	 * - single-select without tabs (one question, no tab bar): finished.
+	 * Confirm-and-move, Enter's job in both modes.
+	 * - tabs: next question, or the submit tab from the last one.
+	 * - no tabs: finished — but only when the question is answered; Enter on
+	 *   an unanswered question does nothing (selection is Space in
+	 *   multiSelect, so hammering Enter can never fire a submit).
 	 */
 	function advanceAfterAnswer() {
-		const q = currentQuestion();
-		if (q?.multiSelect) return;
 		if (!hasTabs) {
+			const q = currentQuestion();
+			if (q && !collect(q)) return; // unanswered: Enter is a no-op
 			finish(false);
 			return;
 		}
@@ -184,6 +184,11 @@ export function buildQuestionnaire(
 		inputMode = false;
 		inputQuestionId = null;
 		editor.setText("");
+		const q = questions[currentTab];
+		if (q?.multiSelect) {
+			refresh(); // curate-then-confirm: the write is one edit among several
+			return;
+		}
 		advanceAfterAnswer();
 	};
 
@@ -239,25 +244,29 @@ export function buildQuestionnaire(
 			refresh();
 			return;
 		}
+		// multiSelect: Space toggles (opencode's model); Enter is confirm-only,
+		// so hammering Enter while selecting can never finish the form.
+		if (q.multiSelect && matchesKey(data, Key.space)) {
+			const opt = opts[optionIndex];
+			if (opt && !opt.isOther) toggle(q, opt.value);
+			refresh();
+			return;
+		}
 		if (matchesKey(data, Key.enter)) {
 			const opt = opts[optionIndex];
 			if (!opt) return;
 			if (opt.isOther && opt.value === OTHER_VALUE) {
-				// In multiSelect, Enter on the written row finishes (the write is
-				// curated and standing); with no write it opens the editor.
-				if (q.multiSelect && written.has(q.id)) {
-					finish(false);
-					return;
-				}
+				// Standing write: re-open the editor pre-filled for editing.
+				// With tabs, Enter here still confirms (handled below).
+				const w = written.get(q.id);
+				if (w) editor.setText(w.text);
 				inputMode = true;
 				inputQuestionId = q.id;
-				editor.setText("");
 				refresh();
 				return;
 			}
 			if (q.multiSelect) {
-				toggle(q, opt.value);
-				refresh();
+				advanceAfterAnswer(); // confirm: next tab, or finish on the last
 				return;
 			}
 			[...picked]
@@ -448,8 +457,8 @@ export function buildQuestionnaire(
 			const multi = q?.multiSelect === true;
 			const help = multi
 				? hasTabs
-					? "Tab/←→ navigate • ↑↓ select • Enter toggle • Esc cancel"
-					: "↑↓ select • Enter toggle • Esc cancel"
+					? "Tab/←→ navigate • ↑↓ select • Space toggle • Enter confirm • Esc cancel"
+					: "↑↓ select • Space toggle • Enter confirm • Esc cancel"
 				: hasTabs
 					? "Tab/←→ navigate • ↑↓ select • Enter confirm • Esc cancel"
 					: "↑↓ navigate • Enter select • Esc cancel";
