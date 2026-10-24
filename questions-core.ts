@@ -9,6 +9,8 @@ export interface QuizQuestionOption {
 	value: string;
 	label: string;
 	description?: string;
+	/** Your recommendation; renders a badge. The recommended option stays first. */
+	recommended?: boolean;
 	/** Internal: the appended free-text option. */
 	isOther?: boolean;
 }

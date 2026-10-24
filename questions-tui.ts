@@ -362,10 +362,15 @@ export function buildQuestionnaire(
 				if (multi) {
 					const checked = picked.has(key(q, opt.value)) || (isOther && written.has(q.id));
 					const box = checked ? theme.fg("success", `[✓]`) : theme.fg("muted", "[ ]");
-					rowLabel = `${box} ${opt.label}`;
+					rowLabel =
+						`${box} ${opt.label}` +
+						(opt.recommended ? theme.fg("success", "  ✦ Recommended") : "");
 				} else {
 					const answered = [...picked].some((k) => k.startsWith(`${q.id}\u0000${opt.value}`));
-					rowLabel = `${numberLabel}${opt.label}${answered ? theme.fg("success", " ✓") : ""}`;
+					rowLabel =
+						`${numberLabel}${opt.label}` +
+						(opt.recommended ? theme.fg("success", "  ✦ Recommended") : "") +
+						(answered ? theme.fg("success", " ✓") : "");
 				}
 				const color = selected || (isOther && inputMode) ? "accent" : "text";
 				addWrappedWithPrefix(focusPrefix, theme.fg(color, rowLabel));

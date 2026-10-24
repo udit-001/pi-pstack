@@ -101,10 +101,13 @@ const QuestionnaireParams = Type.Object({
 					value: Type.String({ description: "Short stable token you branch on when the answer comes back" }),
 					label: Type.String({ description: "The option text as the user will read it" }),
 					description: Type.Optional(
-						Type.String({ description: "One-line helper below the option; mark the recommended option as Recommended here" }),
+						Type.String({ description: "One-line helper below the option" }),
+					),
+					recommended: Type.Optional(
+						Type.Boolean({ description: "Mark your recommended option with this; it renders a Recommended badge. Keep the recommended option first and give it a real reason in its description" }),
 					),
 				}),
-				{ description: "2..6 concrete choices; do not pad — each must change what you do next. Recommended option first, marked Recommended in its description" },
+				{ description: "2..6 concrete choices; do not pad — each must change what you do next. Exactly one option carries recommended: true, and it sits first" },
 			),
 			allowOther: Type.Optional(
 				Type.Boolean({ description: "Permit a free-text answer alongside the listed options (default true). Omit only when the user must pick one of the options" }),
