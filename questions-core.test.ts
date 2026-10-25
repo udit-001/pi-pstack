@@ -144,3 +144,45 @@ describe("resultView", () => {
 		assert.equal(view.rows[1]!.written, true);
 	});
 });
+
+describe("option label/value fallback", () => {
+	test("value-only option: label fills from value", () => {
+		const { questions, error } = normalizeQuestions([
+			{ id: "x", prompt: "p", options: [{ value: "react", description: "Fast refresh" }] },
+		]);
+		assert.equal(error, undefined);
+		assert.equal(questions[0]!.options[0]!.label, "react");
+		assert.equal(questions[0]!.options[0]!.value, "react");
+	});
+
+	test("label-only option: value fills from label", () => {
+		const { questions, error } = normalizeQuestions([
+			{ id: "x", prompt: "p", options: [{ label: "React" }] },
+		]);
+		assert.equal(error, undefined);
+		assert.equal(questions[0]!.options[0]!.value, "React");
+		assert.equal(questions[0]!.options[0]!.label, "React");
+	});
+
+	test("both missing: error names the question and option", () => {
+		const { error } = normalizeQuestions([
+			{ id: "ship", prompt: "p", options: [{ description: "d" }, { label: "ok" }] },
+		]);
+		assert.match(error ?? "", /Question ship option 1 needs a label or a value/);
+	});
+});
+
+describe("answerText: unanswered questions", () => {
+	test("skipped question renders a no-answer line", () => {
+		const qs = normalizeQuestions([
+			{ id: "a", label: "Aa", prompt: "p", options: [{ value: "x", label: "X" }] },
+			{ id: "b", label: "Bb", prompt: "p", options: [{ value: "y", label: "Y" }] },
+		]).questions;
+		const text = answerText({
+			questions: qs,
+			answers: [{ id: "a", values: ["x"], labels: ["X"], wasCustom: false, indexes: [1] }],
+			cancelled: false,
+		});
+		assert.deepEqual(text.split("\n"), ["Aa: user selected: 1. X", "Bb: no answer"]);
+	});
+});

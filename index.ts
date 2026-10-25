@@ -99,8 +99,12 @@ const QuestionnaireParams = Type.Object({
 			prompt: Type.String({ description: "The question text as the user will read it — the ask alone; the TUI explains its own controls" }),
 			options: Type.Array(
 				Type.Object({
-					value: Type.String({ description: "Short stable token you branch on when the answer comes back" }),
-					label: Type.String({ description: "The option text as the user will read it" }),
+					value: Type.Optional(
+						Type.String({ description: "Short stable token you branch on when the answer comes back (defaults to label)" })
+					),
+					label: Type.Optional(
+						Type.String({ description: "The option text as the user will read it (defaults to value)" })
+					),
 					description: Type.Optional(
 						Type.String({ description: "One-line helper below the option" }),
 					),
@@ -108,7 +112,7 @@ const QuestionnaireParams = Type.Object({
 						Type.Boolean({ description: "Renders a Recommended badge next to the label. Exactly one option; keep it first, and say why in its description" }),
 					),
 				}),
-				{ description: "2..6 concrete choices — each must change what you do next. Exactly one option carries recommended: true, and it sits first" },
+				{ description: "2..6 concrete choices — each must change what you do next; every option needs a label or a value (they fill in for each other). Exactly one option carries recommended: true, and it sits first" },
 			),
 			allowOther: Type.Optional(
 				Type.Boolean({ description: "Permit a free-text answer alongside the listed options (default true). Omit only when the user must pick one of the options" }),
