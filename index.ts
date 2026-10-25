@@ -97,6 +97,69 @@ function writeTree(files: SourceTree): void {
 	}
 }
 
+// ─── Discover cache ──────────────────────────────────────────────────────────
+//
+// resources_discover fires on every session start and currently re-reads the
+// whole vendored tree (~200 files) and rewrites the generated tree even when
+// nothing changed. The output depends only on three inputs: the vendored
+// sources, the two adapter docs, and the taken skill names (cwd-dependent).
+// Fingerprint those (stat-only) and reuse the written tree when all three are
+// unchanged. mtime+size, not content hashes: a git checkout bumps mtimes, and
+// hashing 4.3 MB per session would defeat the point.
+
+const CACHE_PATH = join(getAgentDir(), "pi-pstack-gen.cache.json");
+
+type DiscoverCache = {
+	key: string;
+	skillPaths: string[]; // GENERATED-relative, already rename-resolved
+	renames: SkillRename[];
+};
+
+function fingerprintTree(root: string): Array<[string, number, number, boolean]> | null {
+	const out: Array<[string, number, number, boolean]> = [];
+	const walk = (dir: string, rel: string): void => {
+		for (const name of readdirSync(dir).sort()) {
+			if (name === ".DS_Store" || name === "node_modules" || name === ".git") continue;
+			const abs = join(dir, name);
+			const st = statSync(abs);
+			const path = rel ? `${rel}/${name}` : name;
+			if (st.isDirectory()) walk(abs, path);
+			else out.push([path, st.mtimeMs, st.size, (st.mode & 0o111) !== 0]);
+		}
+	};
+	try {
+		walk(root, "");
+	} catch {
+		return null;
+	}
+	return out;
+}
+
+function fingerprintFile(path: string): [string, number, number] | null {
+	try {
+		const st = statSync(path);
+		return [path, st.mtimeMs, st.size];
+	} catch {
+		return null;
+	}
+}
+
+function loadDiscoverCache(key: string): DiscoverCache | null {
+	try {
+		const cache = JSON.parse(readFileSync(CACHE_PATH, "utf8")) as DiscoverCache;
+		if (cache.key !== key) return null;
+		if (!existsSync(GENERATED)) return null;
+		// The manifest alone is not proof: someone may have pruned the tree.
+		// Re-stat the skill files the handler reports; they are all it needs.
+		for (const rel of cache.skillPaths) {
+			if (!existsSync(join(GENERATED, rel))) return null;
+		}
+		return cache;
+	} catch {
+		return null;
+	}
+}
+
 // ─── Collision handling ──────────────────────────────────────────────────────
 
 /**
@@ -286,14 +349,42 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	pi.on("resources_discover", (event) => {
-		const files = generate();
-		if (files.size === 0) return {};
-		({ files, renames } = renameCollidingSkills(files, collectTakenSkillNames(event.cwd)));
-		writeTree(files);
-		const skillPaths = [...files.keys()]
-			.filter((path) => /^skills\/[^/]+\/SKILL\.md$/.test(path))
-			.map((path) => join(GENERATED, path));
-		return skillPaths.length > 0 ? { skillPaths } : {};
+		const taken = collectTakenSkillNames(event.cwd);
+		const key = JSON.stringify([
+			fingerprintTree(SOURCE_ROOT),
+			fingerprintFile(ADAPTER_DOC_PATH),
+			fingerprintFile(GENERATED_README_PATH),
+			[...taken].sort(),
+		]);
+
+		const cached = loadDiscoverCache(key);
+		if (cached) {
+			renames = cached.renames;
+			problems = [];
+			return { skillPaths: cached.skillPaths.map((rel) => join(GENERATED, rel)) };
+		}
+
+		const generated = generate();
+		if (generated.size === 0) {
+			// Sources are broken; a stale manifest would keep reporting the old
+			// healthy state, so drop it and let the next discover retry.
+			try {
+				rmSync(CACHE_PATH, { force: true });
+			} catch {}
+			return {};
+		}
+		const result = renameCollidingSkills(generated, taken);
+		renames = result.renames;
+		writeTree(result.files);
+		const skillPaths = [...result.files.keys()]
+			.filter((path) => /^skills\/[^/]+\/SKILL\.md$/.test(path));
+		const cache: DiscoverCache = { key, skillPaths, renames: result.renames };
+		try {
+			writeFileSync(CACHE_PATH, JSON.stringify(cache));
+		} catch {}
+		return skillPaths.length > 0
+			? { skillPaths: skillPaths.map((path) => join(GENERATED, path)) }
+			: {};
 	});
 
 	registerQuestionnaire(pi);
