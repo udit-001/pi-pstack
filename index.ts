@@ -15,9 +15,19 @@ import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent"
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { existsSync, readFileSync, readdirSync, rmSync, mkdirSync, writeFileSync, chmodSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { adapt, check, type SourceTree, type FileEntry, type HarnessConfig } from "./harness-core.ts";
+import {
+	adapt,
+	check,
+	FRONTMATTER,
+	renameCollidingSkills,
+	type SkillRename,
+	type SourceTree,
+	type FileEntry,
+	type HarnessConfig,
+} from "./harness-core.ts";
 import {
 	answerText,
 	normalizeQuestions,
@@ -85,6 +95,41 @@ function writeTree(files: SourceTree): void {
 		writeFileSync(abs, entry.bytes);
 		chmodSync(abs, entry.executable ? 0o755 : 0o644);
 	}
+}
+
+// ─── Collision handling ──────────────────────────────────────────────────────
+
+/**
+ * Skill names pi already has from the dirs it reads before package skill
+ * paths: ~/.agents/skills, the agent skills dir, and project .agents/skills
+ * and .pi/skills up the cwd's ancestors to the repo root. Those win over our
+ * skillPaths, so a shared name there means our copy is skipped unless renamed.
+ */
+function collectTakenSkillNames(cwd: string): Set<string> {
+	const dirs = [join(homedir(), ".agents", "skills"), join(getAgentDir(), "skills")];
+	for (let dir = resolve(cwd);; dir = dirname(dir)) {
+		dirs.push(join(dir, ".agents", "skills"), join(dir, ".pi", "skills"));
+		if (existsSync(join(dir, ".git")) || dirname(dir) === dir) break;
+	}
+	const names = new Set<string>();
+	for (const dir of dirs) {
+		let entries;
+		try {
+			entries = readdirSync(dir, { withFileTypes: true });
+		} catch {
+			continue;
+		}
+		for (const entry of entries) {
+			if (!entry.isDirectory()) continue;
+			try {
+				const text = readFileSync(join(dir, entry.name, "SKILL.md"), "utf8");
+				names.add(text.match(FRONTMATTER)?.[1].match(/^name:\s*(\S+)\s*$/m)?.[1] ?? entry.name);
+			} catch {
+				// No SKILL.md: not a skill.
+			}
+		}
+	}
+	return names;
 }
 
 // ─── Questionnaire tool ──────────────────────────────────────────────────────
@@ -216,6 +261,7 @@ function registerQuestionnaire(pi: ExtensionAPI): void {
 
 export default function (pi: ExtensionAPI) {
 	let problems: string[] = [];
+	let renames: SkillRename[] = [];
 
 	const generate = (): SourceTree => {
 		problems = [];
@@ -239,9 +285,10 @@ export default function (pi: ExtensionAPI) {
 		}
 	};
 
-	pi.on("resources_discover", () => {
+	pi.on("resources_discover", (event) => {
 		const files = generate();
 		if (files.size === 0) return {};
+		({ files, renames } = renameCollidingSkills(files, collectTakenSkillNames(event.cwd)));
 		writeTree(files);
 		const skillPaths = [...files.keys()]
 			.filter((path) => /^skills\/[^/]+\/SKILL\.md$/.test(path))
@@ -255,9 +302,13 @@ export default function (pi: ExtensionAPI) {
 		description: "Report pi-pstack harness state and problems",
 		handler: async (_args, ctx) => {
 			generate();
+			const renameNote =
+				renames.length > 0
+					? `\nRenamed for name collisions: ${renames.map((r) => `${r.from} -> ${r.to}`).join(", ")}`
+					: "";
 			const message =
 				problems.length === 0
-					? `pi-pstack: healthy.\nSources: ${SOURCE_ROOT}\nGenerated tree: ${GENERATED}`
+					? `pi-pstack: healthy.\nSources: ${SOURCE_ROOT}\nGenerated tree: ${GENERATED}${renameNote}`
 					: `pi-pstack problems (${problems.length}):\n${problems.join("\n")}`;
 			await ctx.ui.notify(message, problems.length === 0 ? "info" : "error");
 		},

@@ -6,6 +6,7 @@ import {
 	adapt,
 	check,
 	classifySkills,
+	renameCollidingSkills,
 	type FileEntry,
 	type HarnessConfig,
 	type SourceTree,
@@ -185,6 +186,36 @@ describe("adapt", () => {
 });
 
 // ─── The vendored upstream tree ──────────────────────────────────────────────
+
+describe("renameCollidingSkills", () => {
+	const colliding = (): SourceTree =>
+		new Map([
+			["skills/tdd/SKILL.md", file(`${FM("tdd")}# TDD\n\nSee [../bro/SKILL.md](../bro/SKILL.md)\n`)],
+			["skills/other/SKILL.md", file(`${FM("other")}# Other\n`)],
+		]);
+
+	test("renames a taken skill in frontmatter only", () => {
+		const { files, renames } = renameCollidingSkills(colliding(), new Set(["tdd"]));
+		assert.deepEqual(renames, [{ from: "tdd", to: "pstack-tdd" }]);
+		const text = files.get("skills/tdd/SKILL.md")!.bytes.toString("utf8");
+		assert.match(text, /^name: pstack-tdd$/m);
+		assert.match(text, /# TDD/);
+		assert.match(text, /\[\.\.\/bro\/SKILL\.md\]/); // path and links stay put
+	});
+
+	test("leaves untaken skills alone", () => {
+		const before = colliding().get("skills/tdd/SKILL.md")!.bytes.toString("utf8");
+		const { files, renames } = renameCollidingSkills(colliding(), new Set(["taken-elsewhere"]));
+		assert.deepEqual(renames, []);
+		assert.equal(files.get("skills/tdd/SKILL.md")!.bytes.toString("utf8"), before);
+	});
+
+	test("skips a rename when the target name is itself taken", () => {
+		const { files, renames } = renameCollidingSkills(colliding(), new Set(["tdd", "pstack-tdd"]));
+		assert.deepEqual(renames, []);
+		assert.match(files.get("skills/tdd/SKILL.md")!.bytes.toString("utf8"), /^name: tdd$/m);
+	});
+});
 
 describe("vendored pstack sources", () => {
 	const ROOT = join(import.meta.dirname, "pstack");

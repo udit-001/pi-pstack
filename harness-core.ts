@@ -191,6 +191,49 @@ function withFragment(newBase: string, href: string): string {
 
 const LINK = /\]\(([^)\s]+)\)/g;
 
+/** Frontmatter block of a markdown file; group 1 is the body between the fences. */
+export const FRONTMATTER = /^---\n([\s\S]*?)\n---/;
+
+/** One collision rename: the user's skill keeps `from`; our copy loads as `to`. */
+export interface SkillRename {
+	from: string;
+	to: string;
+}
+
+/**
+ * Rename generated skills whose plain name is already taken so both load:
+ * the user's keeps the name, the pstack copy becomes `pstack-<name>`. Only
+ * the frontmatter `name` changes -- pi keys skills on it -- while the folder
+ * and its relative links stay put, so cross-skill links keep resolving. A
+ * rename is skipped (core's collision warning stands) when the target name
+ * would exceed 64 characters or is itself taken.
+ */
+export function renameCollidingSkills(
+	files: SourceTree,
+	taken: ReadonlySet<string>,
+): { files: SourceTree; renames: SkillRename[] } {
+	if (taken.size === 0) return { files, renames: [] };
+	const next = new Map(files);
+	const renames: SkillRename[] = [];
+	for (const [path, entry] of files) {
+		const from = path.match(/^skills\/([^/]+)\/SKILL\.md$/)?.[1];
+		if (!from || !taken.has(from)) continue;
+		const to = `pstack-${from}`;
+		if (to.length > 64 || taken.has(to)) continue;
+		const text = entry.bytes.toString("utf8");
+		const fm = text.match(FRONTMATTER);
+		const nameLine = fm && fm[1].match(new RegExp(`^name:\\s*${from}\\s*$`, "m"));
+		if (!fm || !nameLine) continue;
+		const body = fm[1].replace(nameLine[0], `name: ${to}`);
+		next.set(path, {
+			...entry,
+			bytes: Buffer.from(text.replace(FRONTMATTER, () => `---\n${body}\n---`)),
+		});
+		renames.push({ from, to });
+	}
+	return { files: next, renames };
+}
+
 /**
  * Turn a pstack source tree into a pi harness tree:
  * copy included paths, inject the adapter preamble into relevant SKILL.md
