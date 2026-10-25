@@ -130,7 +130,7 @@ function registerQuestionnaire(pi: ExtensionAPI): void {
 		name: "questionnaire",
 		label: "Questionnaire",
 		description:
-			"When a decision blocks progress and its options can be enumerated (2..6 concrete choices), ask through this tool — one call, all blocking questions, recommended option first. Triggers: clarifying requirements, getting preferences, confirming a choice. Wording rules live in the ask-questions skill; non-interactive runs (pi -p, subagent children) have no UI and error — ask in plain text there.",
+			"When a decision blocks progress and its options can be enumerated (2..6 concrete choices), ask through this tool — one call, all blocking questions, recommended option first. Each question takes one pick by default; set multiSelect: true to let the user pick several. Triggers: clarifying requirements, getting preferences, confirming a choice. Wording rules live in the ask-questions skill; non-interactive runs (pi -p, subagent children) have no UI and error — ask in plain text there.",
 		promptSnippet: "questionnaire: ask the user 1..n questions with options (recommended first)",
 		parameters: QuestionnaireParams,
 		executionMode: "sequential",
