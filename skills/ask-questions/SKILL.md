@@ -30,6 +30,7 @@ questions: [
 - Each option needs a `label` or a `value` — the other fills in. Worth writing both when they differ (`value: "react"`, `label: "React"`).
 - Batching: all blocking questions ride in this one call at a natural seam. A new blocking decision mid-work earns its own call — drip questions across turns and the reader loses the whole picture; stack five questions at the seam and attention thins past four.
 - `allowOther` stays on (default); omit it when the answer must be one of the listed options.
+- Several answers legitimately belong to one question? Set `multiSelect: true`; picks return joined on one line.
 - The prompt is the ask alone; the TUI explains its own controls.
 
 ## Reading the result
